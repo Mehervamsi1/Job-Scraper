@@ -117,7 +117,7 @@
                             <tr>
                                 <td><strong>{{ app[0] }}</strong></td>
                                 <td>{{ app[1] }}</td>
-                                <td>{{ app[2][:10] }}</td>
+                                <td>{{ app[2]|string|truncate(10, True, '') }}</td>
                                 <td>
                                     {% if app[3] == 'applied' %}
                                         <span class="badge bg-primary">{{ app[3].title() }}</span>
@@ -154,7 +154,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Add New Application</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form method="POST" action="{{ url_for('add_application') }}">
                 <div class="modal-body">
@@ -195,7 +195,7 @@
         <div class="modal-content">
             <div class="modal-header">
                 <h5 class="modal-title">Update Your Role Interests</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
                 <div class="row">
@@ -259,23 +259,21 @@ function showAddApplicationModal() {
 
 // Show Role Update Modal
 function showRoleUpdateModal() {
-    // Clear all checkboxes first
     document.querySelectorAll('#updateRolesModal input[type="checkbox"]').forEach(checkbox => {
         checkbox.checked = false;
     });
-    
-    // Pre-check current roles - need to target checkboxes within the update modal specifically
+
     const currentRoles = {{ roles | tojson }};
-    currentRoles.forEach(role => {
-        const checkbox = document.querySelector(`#updateRolesModal input[value="${role}"]`);
-        if (checkbox) {
+    document.querySelectorAll('#updateRolesModal input[type="checkbox"]').forEach(checkbox => {
+        if (currentRoles.includes(checkbox.value)) {
             checkbox.checked = true;
         }
     });
+
     new bootstrap.Modal(document.getElementById('updateRolesModal')).show();
 }
 
-// Update roles function
+// Update roles
 function updateRoles() {
     const checkedRoles = [];
     document.querySelectorAll('#updateRolesModal input[type="checkbox"]:checked').forEach(checkbox => {
@@ -289,9 +287,7 @@ function updateRoles() {
     
     fetch('/update_roles', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({roles: checkedRoles})
     })
     .then(response => response.json())
@@ -309,7 +305,7 @@ function updateRoles() {
     });
 }
 
-// Create Status Chart - with better error handling
+// Status Chart
 const statusData = {{ stats | tojson }};
 const statusLabels = Object.keys(statusData || {});
 const statusValues = Object.values(statusData || {});
@@ -334,94 +330,78 @@ if (statusLabels.length > 0 && statusValues.some(val => val > 0)) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'bottom'
-                }
-            }
+            plugins: { legend: { position: 'bottom' } }
         }
     });
 } else {
-    // Show placeholder when no data
     const statusChart = document.getElementById('statusChart');
     statusChart.style.display = 'none';
     statusChart.parentElement.innerHTML = '<div class="text-center text-muted"><i class="fas fa-chart-pie fa-3x mb-2"></i><p>No application data yet</p></div>';
 }
 
-// Create Timeline Chart - with better date handling and error checking
-const applications = {{ applications | tojson }};
+// Timeline Chart
+const appData = {{ applications || tojson  }};
 const last7Days = [];
 const today = new Date();
 
-// Generate last 7 days
 for (let i = 6; i >= 0; i--) {
     const date = new Date(today);
     date.setDate(date.getDate() - i);
     last7Days.push(date.toISOString().split('T')[0]);
 }
 
-// Count applications per day - with better date parsing
 const applicationCounts = last7Days.map(targetDate => {
-    return applications.filter(app => {
+    return appData.filter(app => {
         if (app && app[2]) {
-            const appDate = app[2].split(' ')[0]; // Handle both 'YYYY-MM-DD HH:MM:SS' and 'YYYY-MM-DD' formats
+            const appDate = String(app[2]).split(' ')[0];
             return appDate === targetDate;
         }
         return false;
     }).length;
 });
 
-const timelineCtx = document.getElementById('timelineChart').getContext('2d');
-new Chart(timelineCtx, {
-    type: 'line',
-    data: {
-        labels: last7Days.map(date => {
-            const d = new Date(date);
-            return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
-        }),
-        datasets: [{
-            label: 'Applications',
-            data: applicationCounts,
-            borderColor: '#667eea',
-            backgroundColor: 'rgba(102, 126, 234, 0.1)',
-            tension: 0.4,
-            fill: true,
-            pointBackgroundColor: '#667eea',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4
-        }]
-    },
-    options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                display: false
-            }
+if (applicationCounts.some(val => val > 0)) {
+    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+    new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: last7Days.map(date => {
+                const d = new Date(date);
+                return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+            }),
+            datasets: [{
+                label: 'Applications',
+                data: applicationCounts,
+                borderColor: '#667eea',
+                backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                borderWidth: 2,
+                tension: 0.4,
+                fill: true,
+                pointBackgroundColor: '#667eea',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                pointRadius: 4
+            }]
         },
-        scales: {
-            x: {
-                grid: {
-                    display: false
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { display: false } },
+                y: {
+                    beginAtZero: true,
+                    ticks: { stepSize: 1, precision: 0 },
+                    grid: { borderDash: [2, 2] }
                 }
             },
-            y: {
-                beginAtZero: true,
-                ticks: {
-                    stepSize: 1,
-                    precision: 0
-                },
-                grid: {
-                    borderDash: [2, 2]
-                }
-            }
-        },
-        interaction: {
-            intersect: false,
-            mode: 'index'
+            interaction: { intersect: false, mode: 'index' }
         }
-    }
-});
+    });
+} else {
+    const timelineChart = document.getElementById('timelineChart');
+    timelineChart.style.display = 'none';
+    timelineChart.parentElement.innerHTML = '<div class="text-center text-muted"><i class="fas fa-chart-line fa-3x mb-2"></i><p>No recent applications</p></div>';
+}
 </script>
 {% endblock %}

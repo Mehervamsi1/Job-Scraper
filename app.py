@@ -432,11 +432,26 @@ def update_roles():
         return jsonify({'error': 'Not authenticated'}), 401
     
     new_roles = request.json.get('roles', [])
-    # Update user roles in database (you'll need to implement this method)
-    # For now, just update session
-    session['roles'] = new_roles
     
-    return jsonify({'success': True})
+    if not new_roles:
+        return jsonify({'error': 'At least one role must be selected'}), 400
+    
+    try:
+        # Update user roles in database
+        conn = sqlite3.connect(db.db_name)
+        cursor = conn.cursor()
+        cursor.execute('UPDATE users SET roles = ? WHERE id = ?', 
+                      (json.dumps(new_roles), session['user_id']))
+        conn.commit()
+        conn.close()
+        
+        # Update session
+        session['roles'] = new_roles
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.error(f"Error updating roles: {e}")
+        return jsonify({'error': 'Database error'}), 500
 
 @app.route('/trigger_scraping')
 def trigger_scraping():
@@ -505,6 +520,9 @@ def run_scheduler():
         schedule.run_pending()
         time.sleep(60)
 
+# HTML Templates (create these files in a 'templates' folder)
+
+# templates/base.html
 base_template = '''
 <!DOCTYPE html>
 <html>

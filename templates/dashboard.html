@@ -1,0 +1,427 @@
+<!-- templates/dashboard.html -->
+{% extends "base.html" %}
+{% block content %}
+<div class="row mb-4">
+    <div class="col-md-12">
+        <h2><i class="fas fa-tachometer-alt"></i> Dashboard</h2>
+        <p class="text-muted">Track your job applications and get updates for: 
+            {% for role in roles %}
+                <span class="badge bg-primary me-1">{{ role }}</span>
+            {% endfor %}
+        </p>
+    </div>
+</div>
+
+<!-- Action Buttons -->
+<div class="row mb-4">
+    <div class="col-md-12">
+        <button class="btn btn-primary me-2" onclick="showAddApplicationModal()">
+            <i class="fas fa-plus"></i> Add Application
+        </button>
+        <a href="{{ url_for('trigger_scraping') }}" class="btn btn-success me-2">
+            <i class="fas fa-search"></i> Find New Jobs
+        </a>
+        <button class="btn btn-info" onclick="showRoleUpdateModal()">
+            <i class="fas fa-cog"></i> Update Roles
+        </button>
+    </div>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card dashboard-card">
+            <div class="card-body text-center">
+                <i class="fas fa-paper-plane fa-2x mb-2"></i>
+                <h3>{{ stats.get('applied', 0) }}</h3>
+                <p>Applications Sent</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card dashboard-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+            <div class="card-body text-center">
+                <i class="fas fa-calendar-check fa-2x mb-2"></i>
+                <h3>{{ stats.get('interview', 0) }}</h3>
+                <p>Interviews</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card dashboard-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+            <div class="card-body text-center">
+                <i class="fas fa-check-circle fa-2x mb-2"></i>
+                <h3>{{ stats.get('accepted', 0) }}</h3>
+                <p>Accepted</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-3">
+        <div class="card dashboard-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+            <div class="card-body text-center">
+                <i class="fas fa-times-circle fa-2x mb-2"></i>
+                <h3>{{ stats.get('rejected', 0) }}</h3>
+                <p>Rejected</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Applications Chart -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-pie"></i> Application Status Overview</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="statusChart"></canvas>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-line"></i> Applications Timeline</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Applications -->
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5><i class="fas fa-list"></i> Recent Applications</h5>
+                <span class="badge bg-primary">{{ applications|length }} Total</span>
+            </div>
+            <div class="card-body">
+                {% if applications %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Job Title</th>
+                                <th>Company</th>
+                                <th>Date Applied</th>
+                                <th>Status</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for app in applications %}
+                            <tr>
+                                <td><strong>{{ app[0] }}</strong></td>
+                                <td>{{ app[1] }}</td>
+                                <td>{{ app[2][:10] }}</td>
+                                <td>
+                                    {% if app[3] == 'applied' %}
+                                        <span class="badge bg-primary">{{ app[3].title() }}</span>
+                                    {% elif app[3] == 'interview' %}
+                                        <span class="badge bg-warning">{{ app[3].title() }}</span>
+                                    {% elif app[3] == 'accepted' %}
+                                        <span class="badge bg-success">{{ app[3].title() }}</span>
+                                    {% elif app[3] == 'rejected' %}
+                                        <span class="badge bg-danger">{{ app[3].title() }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ app[3].title() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ app[4][:50] }}{% if app[4]|length > 50 %}...{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                    <p>No applications tracked yet. Start by adding your first application!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Application Modal -->
+<div class="modal fade" id="addApplicationModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Application</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('add_application') }}">
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="job_title" class="form-label">Job Title</label>
+                        <input type="text" class="form-control" id="job_title" name="job_title" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="company" class="form-label">Company</label>
+                        <input type="text" class="form-control" id="company" name="company" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Status</label>
+                        <select class="form-select" id="status" name="status" required>
+                            <option value="applied">Applied</option>
+                            <option value="interview">Interview</option>
+                            <option value="rejected">Rejected</option>
+                            <option value="accepted">Accepted</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="notes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Add Application</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Update Roles Modal -->
+<div class="modal fade" id="updateRolesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Update Your Role Interests</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Software Engineer" id="update_role1">
+                            <label class="form-check-label" for="update_role1">Software Engineer</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Data Scientist" id="update_role2">
+                            <label class="form-check-label" for="update_role2">Data Scientist</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Product Manager" id="update_role3">
+                            <label class="form-check-label" for="update_role3">Product Manager</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="DevOps Engineer" id="update_role4">
+                            <label class="form-check-label" for="update_role4">DevOps Engineer</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Frontend Developer" id="update_role5">
+                            <label class="form-check-label" for="update_role5">Frontend Developer</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Backend Developer" id="update_role6">
+                            <label class="form-check-label" for="update_role6">Backend Developer</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="UI/UX Designer" id="update_role7">
+                            <label class="form-check-label" for="update_role7">UI/UX Designer</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Marketing Manager" id="update_role8">
+                            <label class="form-check-label" for="update_role8">Marketing Manager</label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" value="Business Analyst" id="update_role9">
+                            <label class="form-check-label" for="update_role9">Business Analyst</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="updateRoles()">Update Roles</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Show Add Application Modal
+function showAddApplicationModal() {
+    new bootstrap.Modal(document.getElementById('addApplicationModal')).show();
+}
+
+// Show Role Update Modal
+function showRoleUpdateModal() {
+    // Clear all checkboxes first
+    document.querySelectorAll('#updateRolesModal input[type="checkbox"]').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    
+    // Pre-check current roles - need to target checkboxes within the update modal specifically
+    const currentRoles = {{ roles | tojson }};
+    currentRoles.forEach(role => {
+        const checkbox = document.querySelector(`#updateRolesModal input[value="${role}"]`);
+        if (checkbox) {
+            checkbox.checked = true;
+        }
+    });
+    new bootstrap.Modal(document.getElementById('updateRolesModal')).show();
+}
+
+// Update roles function
+function updateRoles() {
+    const checkedRoles = [];
+    document.querySelectorAll('#updateRolesModal input[type="checkbox"]:checked').forEach(checkbox => {
+        checkedRoles.push(checkbox.value);
+    });
+    
+    if (checkedRoles.length === 0) {
+        alert('Please select at least one role.');
+        return;
+    }
+    
+    fetch('/update_roles', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({roles: checkedRoles})
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('updateRolesModal')).hide();
+            location.reload();
+        } else {
+            alert('Error updating roles. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error updating roles. Please try again.');
+    });
+}
+
+// Create Status Chart - with better error handling
+const statusData = {{ stats | tojson }};
+const statusLabels = Object.keys(statusData || {});
+const statusValues = Object.values(statusData || {});
+
+if (statusLabels.length > 0 && statusValues.some(val => val > 0)) {
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: statusLabels.map(label => label.charAt(0).toUpperCase() + label.slice(1)),
+            datasets: [{
+                data: statusValues,
+                backgroundColor: [
+                    '#667eea',
+                    '#f093fb',
+                    '#4facfe',
+                    '#fa709a',
+                    '#96c93d'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+} else {
+    // Show placeholder when no data
+    const statusChart = document.getElementById('statusChart');
+    statusChart.style.display = 'none';
+    statusChart.parentElement.innerHTML = '<div class="text-center text-muted"><i class="fas fa-chart-pie fa-3x mb-2"></i><p>No application data yet</p></div>';
+}
+
+// Create Timeline Chart - with better date handling and error checking
+const applications = {{ applications | tojson }};
+const last7Days = [];
+const today = new Date();
+
+// Generate last 7 days
+for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    last7Days.push(date.toISOString().split('T')[0]);
+}
+
+// Count applications per day - with better date parsing
+const applicationCounts = last7Days.map(targetDate => {
+    return applications.filter(app => {
+        if (app && app[2]) {
+            const appDate = app[2].split(' ')[0]; // Handle both 'YYYY-MM-DD HH:MM:SS' and 'YYYY-MM-DD' formats
+            return appDate === targetDate;
+        }
+        return false;
+    }).length;
+});
+
+const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+new Chart(timelineCtx, {
+    type: 'line',
+    data: {
+        labels: last7Days.map(date => {
+            const d = new Date(date);
+            return d.toLocaleDateString('en-US', {month: 'short', day: 'numeric'});
+        }),
+        datasets: [{
+            label: 'Applications',
+            data: applicationCounts,
+            borderColor: '#667eea',
+            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+            tension: 0.4,
+            fill: true,
+            pointBackgroundColor: '#667eea',
+            pointBorderColor: '#fff',
+            pointBorderWidth: 2,
+            pointRadius: 4
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            }
+        },
+        scales: {
+            x: {
+                grid: {
+                    display: false
+                }
+            },
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    stepSize: 1,
+                    precision: 0
+                },
+                grid: {
+                    borderDash: [2, 2]
+                }
+            }
+        },
+        interaction: {
+            intersect: false,
+            mode: 'index'
+        }
+    }
+});
+</script>
+{% endblock %}
